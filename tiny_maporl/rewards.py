@@ -69,7 +69,7 @@ def exact_answer_reward(completions, ground_truth, log_extra=None, log_metric=No
     return rewards
 
 
-def consultation_reward(environments=None, **kwargs):
+def consultation_reward(completions=None, environments=None, **kwargs):
     """Small shaping reward for actually consulting the peer agent once.
 
     This is deliberately tiny relative to the task reward. It prevents the active
@@ -77,5 +77,5 @@ def consultation_reward(environments=None, **kwargs):
     leaving task correctness as the dominant objective.
     """
     if environments is None:
-        return []
+        return [0.0] * len(completions or [])
     return [1.0 if getattr(env, "consult_count", 0) == 1 else 0.0 for env in environments]
