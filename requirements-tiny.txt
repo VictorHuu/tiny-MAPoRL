@@ -1,7 +1,9 @@
 # Minimal modern stack for the tiny-MAPoRL path.
 # TRL 1.12.0 is the current stable PyPI release (2026-08-26).
-# Let TRL resolve its compatible Transformers / Accelerate / Datasets versions.
 trl[peft,quantization]==1.12.0
+
+# TRL's environment_factory agent-training API requires Transformers >= 5.2.
+transformers>=5.2.0
 
 # Experiment tracking is optional at runtime but useful for RL curves.
 wandb>=0.21
