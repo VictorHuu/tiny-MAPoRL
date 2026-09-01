@@ -1,9 +1,13 @@
-# Minimal modern stack for the tiny-MAPoRL path.
-# TRL 1.12.0 is the current stable PyPI release (2026-08-26).
-trl[peft,quantization]==1.12.0
+# tiny-MAPoRL modern training stack
+# Runtime:
+#   Python 3.12
+#   PyTorch 2.12.1+cu130
+#   RTX 5090 / sm_120
 
-# TRL's environment_factory agent-training API requires Transformers >= 5.2.
-transformers>=5.2.0
+trl==1.12.0
+transformers==5.16.1
+accelerate==1.14.0
+peft==0.20.0
+bitsandbytes==0.50.2
 
-# Experiment tracking is optional at runtime but useful for RL curves.
-wandb>=0.21
+wandb==0.29.0

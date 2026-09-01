@@ -1,0 +1,5 @@
+models/
+data/
+*.pyc
+outputs/
+**/__pycache__/

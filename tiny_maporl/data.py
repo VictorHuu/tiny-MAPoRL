@@ -12,8 +12,12 @@ feedback as evidence, not as authority. End with the final numeric answer in
 
 
 def load_gsm8k_dataset(split: str = "train", max_samples: int | None = None) -> Dataset:
-    """Load GSM8K and convert it to the conversational format expected by TRL."""
-    dataset = load_dataset("openai/gsm8k", "main", split=split)
+    data_files = {
+        "train": "data/gsm8k/train.jsonl",
+        "test": "data/gsm8k/test.jsonl",
+    }
+    dataset = load_dataset("json", data_files=data_files, split=split)
+
     if max_samples is not None:
         max_samples = min(max_samples, len(dataset))
         dataset = dataset.select(range(max_samples))
@@ -25,8 +29,6 @@ def load_gsm8k_dataset(split: str = "train", max_samples: int | None = None) -> 
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": question},
             ],
-            # Extra columns are intentionally retained: TRL forwards them to
-            # reward functions and environment.reset().
             "question": question,
             "ground_truth": extract_gsm8k_ground_truth(row["answer"]),
         }
