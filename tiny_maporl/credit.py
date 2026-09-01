@@ -28,7 +28,10 @@ def group_relative_advantage(
 ) -> tuple[torch.Tensor, float]:
     grouped = credits.view(-1, group_size)
     mean = grouped.mean(dim=1, keepdim=True)
-    std = grouped.std(dim=1, unbiased=False, keepdim=True)
+    if group_size > 1:
+        std = grouped.std(dim=1, keepdim=True)
+    else:
+        std = torch.zeros_like(mean)
     advantages = (grouped - mean) / (std + eps)
     zero_std_fraction = (std.squeeze(1) < eps).float().mean().item()
     return advantages.reshape(-1), zero_std_fraction
