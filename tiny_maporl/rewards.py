@@ -1,10 +1,21 @@
 from __future__ import annotations
 
+import json
 import re
+import threading
+from pathlib import Path
 from typing import Any
 
 _BOXED_RE = re.compile(r"\\boxed\{([^{}]+)\}")
 _NUMBER_RE = re.compile(r"[-+]?\d+(?:\.\d+)?")
+_TRAJECTORY_LOG_PATH: Path | None = None
+_TRAJECTORY_LOG_LOCK = threading.Lock()
+
+
+def configure_trajectory_log(path: str) -> None:
+    global _TRAJECTORY_LOG_PATH
+    _TRAJECTORY_LOG_PATH = Path(path)
+    _TRAJECTORY_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 def extract_gsm8k_ground_truth(answer: str) -> str:
@@ -55,17 +66,81 @@ def extract_final_answer(completion: Any) -> str:
     return normalize_answer(text)
 
 
-def exact_answer_reward(completions, ground_truth, log_extra=None, log_metric=None, **kwargs):
-    """Binary verifier reward for GSM8K-style tasks."""
+def exact_answer_reward(
+    completions,
+    ground_truth,
+    environments=None,
+    trainer_state=None,
+    log_extra=None,
+    log_metric=None,
+    **kwargs,
+):
     predictions = [extract_final_answer(c) for c in completions]
     targets = [normalize_answer(str(x)) for x in ground_truth]
     rewards = [1.0 if pred == target else 0.0 for pred, target in zip(predictions, targets)]
+    envs = environments or [None] * len(completions)
+
+    drafts = [getattr(env, "last_draft", "") if env is not None else "" for env in envs]
+    feedbacks = [getattr(env, "last_feedback", "") if env is not None else "" for env in envs]
+    consult_counts = [getattr(env, "consult_count", 0) if env is not None else 0 for env in envs]
+    draft_predictions = [extract_final_answer(draft) if draft else "" for draft in drafts]
+    draft_correct = [draft == target for draft, target in zip(draft_predictions, targets)]
+
+    transitions = []
+    for consulted, before, after in zip(consult_counts, draft_correct, rewards):
+        if consulted != 1:
+            transitions.append("no_consult")
+        elif not before and after == 1.0:
+            transitions.append("WR_correction")
+        elif before and after == 1.0:
+            transitions.append("RR_preservation")
+        elif before and after == 0.0:
+            transitions.append("RW_corruption")
+        else:
+            transitions.append("WW_failure")
 
     if log_extra:
+        log_extra("draft", drafts)
+        log_extra("partner_feedback", feedbacks)
+        log_extra("draft_answer", draft_predictions)
         log_extra("predicted_answer", predictions)
         log_extra("ground_truth", targets)
+        log_extra("consult_count", consult_counts)
+        log_extra("interaction_transition", transitions)
+
     if log_metric and rewards:
         log_metric("exact_accuracy", sum(rewards) / len(rewards))
+        log_metric("draft_accuracy", sum(draft_correct) / len(draft_correct))
+        log_metric("correction_rate", transitions.count("WR_correction") / len(transitions))
+        log_metric("preservation_rate", transitions.count("RR_preservation") / len(transitions))
+        log_metric("corruption_rate", transitions.count("RW_corruption") / len(transitions))
+        log_metric("failure_rate", transitions.count("WW_failure") / len(transitions))
+        log_metric("consult_once_rate", sum(x == 1 for x in consult_counts) / len(consult_counts))
+
+    if _TRAJECTORY_LOG_PATH is not None:
+        step = int(getattr(trainer_state, "global_step", -1))
+        rows = []
+        for i, completion in enumerate(completions):
+            rows.append(
+                {
+                    "step": step,
+                    "question": getattr(envs[i], "question", "") if envs[i] is not None else "",
+                    "draft": drafts[i],
+                    "partner_feedback": feedbacks[i],
+                    "final": _completion_to_text(completion),
+                    "draft_answer": draft_predictions[i],
+                    "final_answer": predictions[i],
+                    "ground_truth": targets[i],
+                    "consult_count": consult_counts[i],
+                    "transition": transitions[i],
+                    "task_reward": rewards[i],
+                }
+            )
+        with _TRAJECTORY_LOG_LOCK:
+            with _TRAJECTORY_LOG_PATH.open("a", encoding="utf-8") as f:
+                for row in rows:
+                    f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
     return rewards
 
 
