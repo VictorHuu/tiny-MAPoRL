@@ -7,17 +7,44 @@ import torch
 
 @dataclass
 class CreditBatch:
-    agent_a: torch.Tensor
+    agent_a_draft: torch.Tensor
     agent_b: torch.Tensor
+    agent_a_final: torch.Tensor
 
 
 class SharedTeamCredit:
     name = "shared_team"
 
-    def __call__(self, team_rewards: torch.Tensor) -> CreditBatch:
+    def __call__(self, team_rewards: torch.Tensor, **kwargs) -> CreditBatch:
         return CreditBatch(
-            agent_a=team_rewards.clone(),
+            agent_a_draft=team_rewards.clone(),
             agent_b=team_rewards.clone(),
+            agent_a_final=team_rewards.clone(),
+        )
+
+
+class DiscountedInfluenceCredit:
+    name = "discounted_influence"
+
+    def __init__(self, discount: float = 0.3) -> None:
+        self.discount = discount
+
+    def __call__(
+        self,
+        team_rewards: torch.Tensor,
+        draft_correct: torch.Tensor,
+        agent_b_correct: torch.Tensor,
+        **kwargs,
+    ) -> CreditBatch:
+        gamma = self.discount
+        agent_a_draft = (
+            draft_correct + gamma * agent_b_correct + gamma**2 * team_rewards
+        ) / (1.0 + gamma + gamma**2)
+        agent_b = (agent_b_correct + gamma * team_rewards) / (1.0 + gamma)
+        return CreditBatch(
+            agent_a_draft=agent_a_draft,
+            agent_b=agent_b,
+            agent_a_final=team_rewards.clone(),
         )
 
 
