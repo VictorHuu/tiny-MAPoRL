@@ -4,7 +4,7 @@ import argparse
 
 from trl import GRPOConfig
 
-from tiny_maporl.credit import SharedTeamCredit
+from tiny_maporl.credit import DiscountedInfluenceCredit, SharedTeamCredit
 from tiny_maporl.data import load_gsm8k_dataset
 from tiny_maporl.joint_trainer import JointGRPOTrainer
 
@@ -23,10 +23,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-iterations", type=int, default=1)
     parser.add_argument("--max-completion-length", type=int, default=192)
     parser.add_argument("--learning-rate", type=float, default=1e-5)
-    parser.add_argument("--beta", type=float, default=0.02)
+    parser.add_argument("--beta", type=float, default=0.002)
     parser.add_argument("--epsilon", type=float, default=0.2)
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--top-p", type=float, default=0.95)
+    parser.add_argument("--credit", choices=["shared", "discounted"], default="shared")
+    parser.add_argument("--credit-discount", type=float, default=0.3)
     parser.add_argument("--lora-r", type=int, default=16)
     parser.add_argument("--lora-alpha", type=int, default=32)
     parser.add_argument("--save-steps", type=int, default=50)
@@ -39,6 +41,11 @@ def main() -> None:
     cli = parse_args()
     dataset = load_gsm8k_dataset("train", max_samples=cli.max_samples)
     model_b = cli.model_b or cli.model_a
+    credit_assigner = (
+        SharedTeamCredit()
+        if cli.credit == "shared"
+        else DiscountedInfluenceCredit(cli.credit_discount)
+    )
 
     config = GRPOConfig(
         output_dir=cli.output_dir,
@@ -66,7 +73,7 @@ def main() -> None:
         lora_r=cli.lora_r,
         lora_alpha=cli.lora_alpha,
         load_in_4bit=not cli.no_4bit,
-        credit_assigner=SharedTeamCredit(),
+        credit_assigner=credit_assigner,
         report_to=cli.report_to,
         save_steps=cli.save_steps,
     )
