@@ -51,6 +51,7 @@ def main() -> None:
         output_dir=cli.output_dir,
         learning_rate=cli.learning_rate,
         per_device_train_batch_size=cli.questions_per_update,
+        generation_batch_size=cli.num_generations,
         num_train_epochs=cli.num_train_epochs,
         num_generations=cli.num_generations,
         num_iterations=cli.num_iterations,
