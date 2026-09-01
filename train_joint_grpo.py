@@ -9,6 +9,18 @@ from tiny_maporl.data import load_gsm8k_dataset
 from tiny_maporl.joint_trainer import JointGRPOTrainer
 
 
+class JointGRPOTrainerCompat(JointGRPOTrainer):
+    def _chat_ids(self, tokenizer, messages, device):
+        kwargs = {"add_generation_prompt": True, "return_tensors": "pt"}
+        try:
+            ids = tokenizer.apply_chat_template(messages, enable_thinking=False, **kwargs)
+        except TypeError:
+            ids = tokenizer.apply_chat_template(messages, **kwargs)
+        if hasattr(ids, "input_ids"):
+            ids = ids.input_ids
+        return ids.to(device)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-a", required=True)
@@ -64,7 +76,7 @@ def main() -> None:
         report_to="none",
     )
 
-    trainer = JointGRPOTrainer(
+    trainer = JointGRPOTrainerCompat(
         model_a_path=cli.model_a,
         model_b_path=model_b,
         train_dataset=dataset,
