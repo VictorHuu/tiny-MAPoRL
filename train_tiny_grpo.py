@@ -11,7 +11,7 @@ from trl import GRPOConfig, GRPOTrainer
 from tiny_maporl.data import load_gsm8k_dataset
 from tiny_maporl.environment import PeerReviewEnv
 from tiny_maporl.partner import FrozenPartner
-from tiny_maporl.rewards import consultation_reward, exact_answer_reward
+from tiny_maporl.rewards import configure_trajectory_log, consultation_reward, exact_answer_reward
 
 
 def parse_args() -> argparse.Namespace:
@@ -57,6 +57,8 @@ def main() -> None:
     if not torch.cuda.is_available():
         raise RuntimeError("The training path currently expects a CUDA GPU.")
 
+    configure_trajectory_log(f"{args.output_dir}/trajectories.jsonl")
+
     partner_model = args.partner_model or args.model
     partner = FrozenPartner(
         model_name=partner_model,
@@ -96,6 +98,7 @@ def main() -> None:
         max_completion_length=args.max_completion_length,
         max_tool_calling_iterations=2,
         logging_steps=1,
+        log_completions=True,
         save_steps=50,
         save_total_limit=2,
         bf16=use_bf16,
